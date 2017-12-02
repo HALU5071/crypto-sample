@@ -9,6 +9,7 @@ import android.util.Log
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
+import se.simbio.encryption.Encryption
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.security.KeyPairGenerator
@@ -17,6 +18,10 @@ import java.security.PrivateKey
 import javax.crypto.Cipher
 import javax.crypto.CipherInputStream
 import javax.crypto.CipherOutputStream
+import com.kazakago.cryptore.CipherAlgorithm
+import com.kazakago.cryptore.Cryptore
+import com.kazakago.cryptore.DecryptResult
+import com.kazakago.cryptore.EncryptionPadding
 
 
 class MainActivity : AppCompatActivity() {
@@ -27,10 +32,11 @@ class MainActivity : AppCompatActivity() {
 
   private val KEY_PROVIDER = "AndroidKeyStore"
 
-  private val ALGORITHM = "RSA/ECB/NoPadding"
+//  private val ALGORITHM = "RSA/ECB/NoPadding"
 //  private val ALGORITHM = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding"
 //  private val ALGORITHM = "RSA/ECB/OAEPWithSHA-512AndMGF1Padding"
-//  private val ALGORITHM = "RSA/ECB/OAEPPadding"
+  private val ALGORITHM = "RSA/ECB/OAEPPadding"
+//  private val ALGORITHM = "AES/CBC/PKCS7Padding"
 
   val button by lazy { findViewById<Button>(R.id.do_encrypt) }
 
@@ -40,15 +46,24 @@ class MainActivity : AppCompatActivity() {
 
     createKeyStore()
 
+    val builder = Cryptore.Builder(KEY_ALIAS, CipherAlgorithm.RSA)
+    val encryptor = builder.build()
+
     button.setOnClickListener {
       val encryptedText = findViewById<TextView>(R.id.encrypted_text)
       val decryptedText = findViewById<TextView>(R.id.decrypted_text)
       val editText = findViewById<EditText>(R.id.plain_text)
 
-      val encryptedString = encryptString(keyStore, KEY_ALIAS, editText.text.toString())
+//      val encryptedString = encryptString(keyStore, KEY_ALIAS, editText.text.toString())
+//      val encryptedString = encryption.encrypt(editText.text.toString())
+      val encryptedStringResult = encryptor.encrypt(editText.text.toString().toByteArray())
+      val encryptedString = Base64.encodeToString(encryptedStringResult.bytes, Base64.DEFAULT)
       encryptedText.text = encryptedString
 
-      val decryptedString = decryptString(keyStore, KEY_ALIAS, encryptedString)
+      val decryptoResult = encryptor.decrypt(Base64.decode(encryptedString, Base64.DEFAULT))
+      val decryptedString = decryptoResult.bytes.toString()
+//      val decryptedString = decryptString(keyStore, KEY_ALIAS, encryptedString)
+//      val decryptedString = encryption.decryptOrNull(encryptedString)
       decryptedText.text = decryptedString
     }
 
@@ -68,13 +83,12 @@ class MainActivity : AppCompatActivity() {
     try {
       // Create new key if needed
       if (!keyStore.containsAlias(alias)) {
-        val keyPairGenerator = KeyPairGenerator.getInstance(
-          KeyProperties.KEY_ALGORITHM_RSA, KEY_PROVIDER)
+        val keyPairGenerator = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, KEY_PROVIDER)
         keyPairGenerator.initialize(
           KeyGenParameterSpec.Builder(
             alias,
-            KeyProperties.PURPOSE_DECRYPT)
-//            .setBlockModes(KeyProperties.BLOCK_MODE_ECB)
+            KeyProperties.PURPOSE_SIGN)
+            .setBlockModes(KeyProperties.BLOCK_MODE_CBC)
             .setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA512)
             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_RSA_OAEP)
             .build())
